@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential libssl-dev bison flex libelf-dev bc clang lld llvm gcc-aarch64-linux-gnu zip
 
-      - name: Clone GKI 5.15.153 Kernel Tree
+      - name: Clone & Prepare GKI 5.15.153 Kernel Tree
         run: |
           git clone --depth=1 -b android13-5.15.153_r00 https://android.googlesource.com/kernel/common kernel-5.15
           cd kernel-5.15
@@ -35,10 +35,18 @@ jobs:
           scripts/config --set-str CONFIG_LOCALVERSION "-android13-3-28444519"
           scripts/config --disable CONFIG_DEBUG_INFO_BTF
           scripts/config --set-val CONFIG_STACKPROTECTOR_GUARD_OFFSET 0
+          scripts/config --enable CONFIG_NET
+          scripts/config --enable CONFIG_WIRELESS
+          scripts/config --module CONFIG_CFG80211
+          scripts/config --module CONFIG_MAC80211
+          scripts/config --enable CONFIG_MAC80211_RC_MINSTREL
+          scripts/config --enable CONFIG_MAC80211_RC_DEFAULT_MINSTREL
+          scripts/config --enable CONFIG_MAC80211_LEDS
+          make ARCH=arm64 CC=clang LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
           echo "5.15.153-android13-3-28444519" > include/config/kernel.release
           echo "5.15.153-android13-3-28444519" > .kernelrelease
           make ARCH=arm64 CC=clang LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- KERNELRELEASE="5.15.153-android13-3-28444519" prepare modules_prepare
-
+          make -j$(nproc) ARCH=arm64 CC=clang LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- KERNELRELEASE="5.15.153-android13-3-28444519" modules
       - name: Compile RTL8723DU Drivers
         run: |
           make -j$(nproc) ARCH=arm64 CC=clang LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- KSRC=$GITHUB_WORKSPACE/kernel-5.15 KBUILD_OUTPUT=$GITHUB_WORKSPACE/kernel-5.15 KERNELRELEASE="5.15.153-android13-3-28444519"
@@ -49,6 +57,8 @@ jobs:
       - name: Assemble KernelSU Zip Package
         run: |
           mkdir -p ksu_module/modules
+          find kernel-5.15 -name "mac80211.ko" -exec cp {} ksu_module/modules/ \;
+          find kernel-5.15 -name "cfg80211.ko" -exec cp {} ksu_module/modules/ \;
           cp rtw_core.ko rtw_usb.ko rtw_8723x.ko rtw_8723d.ko rtw_8723du.ko ksu_module/modules/
           chmod +x ksu_module/service.sh
           cd ksu_module
