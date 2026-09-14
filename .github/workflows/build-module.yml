@@ -25,7 +25,7 @@ jobs:
       - name: Install Toolchain & Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libssl-dev bison flex libelf-dev bc clang lld gcc-aarch64-linux-gnu zip
+          sudo apt-get install -y build-essential libssl-dev bison flex libelf-dev bc clang lld llvm gcc-aarch64-linux-gnu zip
 
       - name: Clone GKI 5.15 Kernel Tree
         run: |
@@ -33,6 +33,7 @@ jobs:
           cd kernel-5.15
           make ARCH=arm64 gki_defconfig
           scripts/config --set-str CONFIG_LOCALVERSION "-android13-3-28444519"
+          scripts/config --disable CONFIG_DEBUG_INFO_BTF
           make ARCH=arm64 CC=clang LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
 
       - name: Compile RTL8723DU Drivers
