@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTL8723DU Driver Status</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 16px; }
+  .card { background: #1e1e1e; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 1px solid #2d2d2d; }
+  h2, h3 { margin: 0 0 12px 0; font-size: 18px; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a2a; }
+  .row:last-child { border-bottom: none; }
+  .label { color: #9e9e9e; font-size: 14px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+  .ok { background: #1b5e20; color: #a5d6a7; }
+  .err { background: #b71c1c; color: #ef9a9a; }
+  .warn { background: #e65100; color: #ffe0b2; }
+  .btn-group { display: flex; gap: 8px; margin-top: 14px; }
+  button { flex: 1; background: #1976d2; color: #fff; border: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+  button:active { filter: brightness(0.85); }
+  button.sec { background: #37474f; }
+  pre { background: #0a0a0a; color: #81c784; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; overflow-x: auto; max-height: 220px; white-space: pre-wrap; word-break: break-all; margin: 0; }
+</style>
+</head>
+<body>
+  <h2>RTL8723DU Status</h2>
+
+  <div class="card">
+    <div class="row">
+      <span class="label">Kernel Driver</span>
+      <span id="drv-status" class="badge warn">Checking...</span>
+    </div>
+    <div class="row">
+      <span class="label">WiFi Interface</span>
+      <strong id="iface-status">-</strong>
+    </div>
+    <div class="row">
+      <span class="label">Active Modules</span>
+      <span id="mod-count" style="font-size:13px;font-family:monospace;">0 / 5</span>
+    </div>
+
+    <div class="btn-group">
+      <button onclick="refresh()">Refresh</button>
+      <button class="sec" onclick="reloadDriver()">Reload</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Module Diagnostics</h3>
+    <div id="module-details" style="font-size: 12px; font-family: monospace; color: #ccc;">Checking modules...</div>
+  </div>
+
+  <div class="card">
+    <h3>Kernel Messages (dmesg)</h3>
+    <pre id="logs">Loading...</pre>
+  </div>
+
+<script>
+async function runCmd(cmd) {
+  if (typeof ksu !== "undefined" && ksu.exec) {
+    const res = await ksu.exec(cmd);
+    return res.stdout ? res.stdout.trim() : "";
+  }
+  return "";
+}
+
+async function refresh() {
+  const reqMods = ["rtw_core", "rtw_usb", "rtw_8723x", "rtw_8723d", "rtw_8723du"];
+  const lsmodOut = await runCmd("lsmod");
+  
+  let loadedCount = 0;
+  let modHtml = "";
+  for (const m of reqMods) {
+    const loaded = new RegExp(`^${m}\\s`, "m").test(lsmodOut);
+    if (loaded) loadedCount++;
+    modHtml += `<div>• ${m}: <span class="badge ${loaded ? 'ok' : 'err'}">${loaded ? 'LOADED' : 'MISSING'}</span></div>`;
+  }
+  document.getElementById("module-details").innerHTML = modHtml;
+  document.getElementById("mod-count").innerText = `${loadedCount} / ${reqMods.length}`;
+
+  const drvStatus = document.getElementById("drv-status");
+  if (loadedCount === reqMods.length) {
+    drvStatus.innerText = "Running";
+    drvStatus.className = "badge ok";
+  } else if (loadedCount > 0) {
+    drvStatus.innerText = "Partial";
+    drvStatus.className = "badge warn";
+  } else {
+    drvStatus.innerText = "Stopped";
+    drvStatus.className = "badge err";
+  }
+
+  const iface = await runCmd("ip -br link | grep -E 'wlan[1-9]|rtw' | awk '{print $1}'");
+  document.getElementById("iface-status").innerText = iface || "No USB dongle detected";
+
+  const log = await runCmd("dmesg | grep -iE 'rtw|8723' | tail -n 15");
+  document.getElementById("logs").innerText = log || "No recent RTW88 logs found in dmesg";
+}
+
+async function reloadDriver() {
+  document.getElementById("drv-status").innerText = "Reloading...";
+  document.getElementById("drv-status").className = "badge warn";
+  await runCmd("sh /data/adb/modules/rtw8723du/service.sh");
+  setTimeout(refresh, 1000);
+}
+
+refresh();
+</script>
+</body>
+</html>

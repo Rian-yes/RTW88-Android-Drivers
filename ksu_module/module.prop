@@ -1,0 +1,6 @@
+id=rtw8723du
+name=RTL8723DU Driver
+version=v1.0
+versionCode=1
+author=Realtek / KernelSU
+description=RTW88 RTL8723DU WiFi driver loaded systemlessly via KernelSU with WebUI status.

@@ -1,0 +1,55 @@
+name: Build RTL8723DU KernelSU Module
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '**.c'
+      - '**.h'
+      - 'Makefile'
+      - 'ksu_module/**'
+      - '.github/workflows/build-module.yml'
+
+jobs:
+  build:
+    name: Build Kernel 5.15.153 Modules
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Driver Repository
+        uses: actions/checkout@v4
+
+      - name: Install Toolchain & Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev bison flex libelf-dev bc clang lld gcc-aarch64-linux-gnu zip
+
+      - name: Clone GKI 5.15 Kernel Tree
+        run: |
+          git clone --depth=1 -b android13-5.15 https://android.googlesource.com/kernel/common kernel-5.15
+          cd kernel-5.15
+          make ARCH=arm64 gki_defconfig
+          scripts/config --set-str CONFIG_LOCALVERSION "-android13-3-28444519"
+          make ARCH=arm64 CC=clang LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
+
+      - name: Compile RTL8723DU Drivers
+        run: |
+          make -j$(nproc) ARCH=arm64 CC=clang LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- KSRC=$GITHUB_WORKSPACE/kernel-5.15
+
+      - name: Assemble KernelSU Zip Package
+        run: |
+          mkdir -p ksu_module/modules
+          cp rtw_core.ko rtw_usb.ko rtw_8723x.ko rtw_8723d.ko rtw_8723du.ko ksu_module/modules/
+          chmod +x ksu_module/service.sh
+          cd ksu_module
+          zip -r ../rtw8723du-kernelsu-5.15.153.zip ./*
+
+      - name: Upload Flashable KernelSU Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtw8723du-kernelsu-5.15.153
+          path: rtw8723du-kernelsu-5.15.153.zip
+          retention-days: 30
