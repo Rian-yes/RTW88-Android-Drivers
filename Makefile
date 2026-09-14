@@ -20,7 +20,7 @@ HOSTCXX ?= g++-12
 # Kernel configuration
 KVER ?= $(if $(KERNELRELEASE),$(KERNELRELEASE),$(shell uname -r))
 KSRC ?= $(if $(KERNEL_SRC),$(KERNEL_SRC),$(HOME)/android_crdroid_14_kernel_dev_testing_kit)
-KBUILD_OUTPUT ?= $(KSRC)/out
+KBUILD_OUTPUT ?= $(KSRC)
 JOBS ?= $(shell nproc --ignore=1)
 
 # Android module and firmware paths
